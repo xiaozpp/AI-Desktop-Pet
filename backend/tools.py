@@ -1,13 +1,13 @@
 import base64
 import io
-import pyautogui
-from PIL import Image
 
 class ToolBox:
     @staticmethod
     def capture_screen_base64():
         """截取屏幕，压缩并转为 Base64 (适配 Gemini API)"""
         try:
+            import pyautogui
+
             #  截图
             screenshot = pyautogui.screenshot()
             

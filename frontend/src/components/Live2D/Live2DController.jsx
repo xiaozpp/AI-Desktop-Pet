@@ -24,10 +24,19 @@ const Live2DController = forwardRef((props, ref) => {
     // 重置表情
     resetExpression: () => {
       if (live2dRef.current) {
-        setTimeout(() => {
-          live2dRef.current.showExpression('', false);
-        }, 1000);
+        live2dRef.current.resetExpression?.();
       }
+    },
+
+    // 获取底层模型，供待机动画 hook 驱动参数
+    getModel: () => live2dRef.current?.getModel?.(),
+
+    setMovementState: (state) => {
+      live2dRef.current?.setMovementState?.(state);
+    },
+
+    setScale: (factor) => {
+      live2dRef.current?.setScale?.(factor);
     },
 
     // 获取原始 ref（以备不时之需）

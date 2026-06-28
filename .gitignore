@@ -25,7 +25,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 
 # Environment variables
 .env
@@ -48,7 +47,33 @@ logs/
 *.sqlite
 *.sqlite3
 memory_db/chroma.sqlite3
+memory_db/
+backend/memory_db/
+backend/users.db
+backend/.jwt_secret
+
+# Per-user runtime state
+backend/persona_state.json
+backend/user_facts/
+backend/user_facts.json
+backend/pet_state.json
+backend/pet_states/
 
 # Temporary files
 *.tmp
 .cache/
+.codegraph/
+.codex-video-frames/
+.workbuddy/
+
+# 打包产物（PyInstaller / electron-builder 输出）
+frontend/dist-app/
+frontend/release/
+frontend/build/
+backend/build/
+*.exe.blockmap
+
+# 会话/调试产物
+backend/backend.log
+backend/data/
+

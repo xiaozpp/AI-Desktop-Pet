@@ -1,4 +1,4 @@
-import React, { useState } from 'react'; // 👈 必须引入 useState
+import { useState } from 'react';
 import PropTypes from 'prop-types';
 import VoiceInput from './VoiceInput';
 
@@ -10,7 +10,11 @@ const InputArea = ({
     onFileUpload, 
     disabled,
     isAiSpeaking,
-    onRecordStart 
+    onRecordStart,
+    onRecordingChange,
+    wakeEnabled,
+    voiceStatus,
+    onWakeToggle,
   }) => {
     
     // ✅ 新增：让组件自己管理输入框的内容
@@ -33,7 +37,9 @@ const InputArea = ({
 
     // 处理录音完成
     const handleAudioCaptured = (audioBlob) => {
-        const audioFile = new File([audioBlob], "voice_command.wav", { type: "audio/wav" });
+        const audioType = audioBlob.type || 'audio/webm';
+        const extension = audioType.includes('webm') ? 'webm' : 'wav';
+        const audioFile = new File([audioBlob], `voice_command.${extension}`, { type: audioType });
         onFileUpload(audioFile, true); 
     };
   
@@ -44,7 +50,7 @@ const InputArea = ({
           className="icon-button"
           style={{ marginRight: 8 }}
           onClick={() => fileInputRef.current?.click()}
-          title="上传文档"
+          title="上传图片或音频"
           disabled={disabled}
         >
           📁
@@ -54,7 +60,7 @@ const InputArea = ({
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept=".pdf,.doc,.docx"
+          accept="image/*,audio/*"
           onChange={e => e.target.files[0] && onFileUpload(e.target.files[0])}
         />
 
@@ -63,8 +69,12 @@ const InputArea = ({
             <VoiceInput 
                 onAudioCaptured={handleAudioCaptured} 
                 onRecordStart={onRecordStart}
+                onRecordingChange={onRecordingChange}
                 disabled={disabled}
                 isAiSpeaking={isAiSpeaking} 
+                wakeEnabled={wakeEnabled}
+                voiceStatus={voiceStatus}
+                onWakeToggle={onWakeToggle}
             />
         </div>
 
@@ -98,6 +108,7 @@ const InputArea = ({
     disabled: PropTypes.bool.isRequired,
     isAiSpeaking: PropTypes.bool, 
     onRecordStart: PropTypes.func,
+    onRecordingChange: PropTypes.func,
   };
   
   export default InputArea;

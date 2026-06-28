@@ -6,7 +6,23 @@
 			"PinkFox.8192/texture_00.png"
 		],
 		"Physics": "PinkFox.physics3.json",
-		"DisplayInfo": "PinkFox.cdi3.json"
+		"DisplayInfo": "PinkFox.cdi3.json",
+		"Motions": {
+			"Walk": [
+				{
+					"File": "walk.motion3.json",
+					"FadeInTime": 0.2,
+					"FadeOutTime": 0.2
+				}
+			],
+			"Kuku": [
+				{
+					"File": "kuku.motion3.json",
+					"FadeInTime": 0.5,
+					"FadeOutTime": 0.5
+				}
+			]
+		}
 	},
 	"Groups": [
 		{

@@ -19,12 +19,15 @@ const Sidebar = ({ isOpen, onClose, messages }) => {
       )}
       <div className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <h3>聊天记录</h3>
-          <button className="sidebar-close-btn" onClick={onClose}>
+          <h3>本次对话</h3>
+          <button className="sidebar-close-btn" onClick={onClose} aria-label="关闭本次对话">
             ×
           </button>
         </div>
         <div className="sidebar-content">
+          {messages.length === 0 && (
+            <div className="sidebar-message system">本次还没有对话</div>
+          )}
           {messages.map((msg, index) => (
             <div key={index} className={`sidebar-message ${msg.type}`}>
               <strong>{msg.type === 'user' ? '你' : '助手'}：</strong>
