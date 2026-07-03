@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import Live2DController from '../components/Live2D/Live2DController';
 import InputArea from '../components/Chat/InputArea';
 import LoadingDots from '../components/LoadingDots';
-import CodeStatusBar from '../components/CodeStatusBar';
 import PersonaSwitcher from '../components/PersonaSwitcher';
 import Sidebar from '../components/Sidebar';
 import MemoryPanel from '../components/MemoryPanel';
@@ -35,8 +34,6 @@ const MSG_TYPE = {
   VOICE_TRANSCRIPT: "voice_transcript",
   CANCELED: "canceled",
   ERROR: "error",
-  // 阶段2/3 预留：编程状态、养成状态、养成动作
-  CODE_STATUS: "code_status",
   PERSONA_STATE: "persona_state",
   PERSONA_CHANGE: "persona_change"
 };
@@ -49,12 +46,6 @@ const CONNECTION_LABELS = {
   closed: '未连接',
 };
 
-const CODE_EMOTION_MAP = {
-  coding: 'neutral',
-  thinking: 'bored',
-  idle_recent: 'happy',
-  idle: 'bored'
-};
 
 // 活力档位（renderer 侧映射）。模式名（quiet/standby/roaming/lively）是与 main process 的契约，
 // main 侧据名配置漫游开关/速度/停留；renderer 侧只关心 microInterval（微动作间隔）与 label。
@@ -79,7 +70,6 @@ export default function MainPage() {
   const [messages, setMessages] = useState([]);
   const [neuroState, setNeuroState] = useState("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [codeStatus, setCodeStatus] = useState(null);  // 编程监控状态
   const [personaState, setPersonaState] = useState({
     active_persona_id: DEFAULT_PERSONA_ID,
     personas: PERSONA_OPTIONS,
@@ -157,7 +147,8 @@ export default function MainPage() {
   // 否则两组 RAF 会同时写身体参数打架。
   const isWalking = movementState.phase === 'walking';
   const patrolMode = isWalking && !panelOpen && !sidebarOpen;
-  useIdleAnimations(getModel, !isWalking, VITALITY_MODES[vitalityMode]?.microInterval);
+  const animationEnabled = authState.status === 'authenticated';
+  useIdleAnimations(getModel, animationEnabled && !isWalking, VITALITY_MODES[vitalityMode]?.microInterval);
   // 口型同步：播放 TTS 时采集音量驱动嘴型，不播放时嘴闭合。
   useLipSync(getModel, analyserRef, isPlaying);
   // 说话手势：AI 说话时手部/肩膀轻微摆动，增加表达感。
@@ -237,13 +228,6 @@ export default function MainPage() {
         setNeuroState("idle");
         break;
 
-      case MSG_TYPE.CODE_STATUS:
-        setCodeStatus(payload);
-        if (neuroState === "idle" && live2dRef.current) {
-          const emotion = CODE_EMOTION_MAP[payload.state];
-          if (emotion) live2dRef.current.showExpression?.(emotion);
-        }
-        break;
 
       case MSG_TYPE.PERSONA_STATE:
         setPersonaState(payload);
@@ -252,7 +236,7 @@ export default function MainPage() {
       default:
         console.warn("未知消息:", type);
     }
-  }, [queueAudioChunk, neuroState]);
+  }, [queueAudioChunk]);
 
   // === 3. 使用 Socket Hook (逻辑外包) ===
   const wsUrl = authState.status === 'authenticated' && authState.token
@@ -309,7 +293,6 @@ export default function MainPage() {
       active_persona_id: DEFAULT_PERSONA_ID,
       personas: PERSONA_OPTIONS,
     });
-    setCodeStatus(null);
     setAuthState({ status: 'unauthenticated', token: null, username: '' });
   };
   
@@ -623,7 +606,6 @@ export default function MainPage() {
                 </button>
               ))}
             </div>
-            <CodeStatusBar codeStatus={codeStatus} />
             <div className="control-dock-actions">
               <button
                 className="history-toggle"

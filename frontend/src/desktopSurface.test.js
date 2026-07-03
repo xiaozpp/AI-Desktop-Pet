@@ -14,6 +14,15 @@ test('packaged app loads the Live2D model relative to dist/index.html', () => {
   assert.equal(live2dModelSource.includes("Live2DModel.from('/models/PinkFox/PinkFox.model3.json')"), false);
 });
 
+test('Live2D renderer is capped for packaged desktop resource use', () => {
+  assert.equal(live2dModelSource.includes('app.ticker.maxFPS = 30'), true);
+});
+
+test('idle animation does not spin before authentication', () => {
+  assert.equal(mainPageSource.includes("const animationEnabled = authState.status === 'authenticated'"), true);
+  assert.equal(mainPageSource.includes('useIdleAnimations(getModel, animationEnabled && !isWalking'), true);
+});
+
 test('desktop surface does not expose fake pet mechanics', () => {
   const forbiddenSurfaceTerms = [
     'PetStatusBar',
@@ -46,7 +55,6 @@ test('upload control only advertises supported media', () => {
 
 test('desktop surface keeps the real product controls', () => {
   assert.equal(mainPageSource.includes('PersonaSwitcher'), true);
-  assert.equal(mainPageSource.includes('CodeStatusBar'), true);
   assert.equal(mainPageSource.includes('\u672c\u6b21\u5bf9\u8bdd'), true);
   assert.equal(sidebarSource.includes('\u672c\u6b21\u5bf9\u8bdd'), true);
   assert.equal(`${mainPageSource}${sidebarSource}`.includes('\u804a\u5929\u8bb0\u5f55'), false);

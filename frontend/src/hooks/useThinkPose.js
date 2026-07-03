@@ -21,8 +21,6 @@ export function useThinkPose(getModel, isThinking) {
   // 当前值（平滑插值用）。0=中性，1=完全思考姿态。
   const poseRef = useRef(0);
 
-  const isThinkingRef = useRef(isThinking);
-  isThinkingRef.current = isThinking;
   const getModelRef = useRef(getModel);
   getModelRef.current = getModel;
 
@@ -30,6 +28,19 @@ export function useThinkPose(getModel, isThinking) {
     const setParam = (core, id, val) => {
       try { core.setParameterValueById(id, val) } catch { /* 参数不存在则忽略 */ }
     };
+
+    const resetPose = () => {
+      poseRef.current = 0;
+      const model = getModelRef.current && getModelRef.current();
+      const core = model?.internalModel?.coreModel;
+      if (!core) return;
+      for (const id of Object.keys(THINK_PARAMS)) setParam(core, id, 0);
+    };
+
+    if (!isThinking) {
+      resetPose();
+      return;
+    }
 
     const tick = () => {
       const model = getModelRef.current && getModelRef.current();
@@ -39,7 +50,7 @@ export function useThinkPose(getModel, isThinking) {
         return;
       }
 
-      const target = isThinkingRef.current ? 1 : 0;
+      const target = isThinking ? 1 : 0;
       // 平滑：进入思考慢一点（酝酿），退出快一点（想完了立即恢复）。
       const alpha = target > poseRef.current ? 0.06 : 0.12;
       poseRef.current = poseRef.current + (target - poseRef.current) * alpha;
@@ -55,6 +66,7 @@ export function useThinkPose(getModel, isThinking) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+      resetPose();
     };
-  }, []);
+  }, [isThinking]);
 }

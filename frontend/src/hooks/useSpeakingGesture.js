@@ -21,8 +21,6 @@ export function useSpeakingGesture(getModel, isPlaying) {
     active: null,     // 当前手势 { params, start, duration, raf }
   });
 
-  const isPlayingRef = useRef(isPlaying);
-  isPlayingRef.current = isPlaying;
   const getModelRef = useRef(getModel);
   getModelRef.current = getModel;
 
@@ -50,21 +48,24 @@ export function useSpeakingGesture(getModel, isPlaying) {
       for (const id of ALL_GESTURE_PARAMS) setParam(core, id, 0);
     };
 
+    const resetGesture = () => {
+      stateRef.current.active = null;
+      stateRef.current.nextGesture = 0;
+      const model = getModelRef.current && getModelRef.current();
+      const core = model?.internalModel?.coreModel;
+      if (core) zeroAll(core);
+    };
+
+    if (!isPlaying) {
+      resetGesture();
+      return;
+    }
+
     const tick = () => {
       const model = getModelRef.current && getModelRef.current();
       const core = model?.internalModel?.coreModel;
-      const playing = isPlayingRef.current;
 
       if (!core) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-
-      if (!playing) {
-        // 不说话：清掉激活的手势，归零手部。
-        stateRef.current.active = null;
-        stateRef.current.nextGesture = 0;
-        zeroAll(core);
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
@@ -97,6 +98,7 @@ export function useSpeakingGesture(getModel, isPlaying) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+      resetGesture();
     };
-  }, []);
+  }, [isPlaying]);
 }

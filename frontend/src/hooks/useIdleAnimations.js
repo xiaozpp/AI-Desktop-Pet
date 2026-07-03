@@ -64,7 +64,16 @@ export function useIdleAnimations(getModel, enabled = true, microInterval = null
       try { core.setParameterValueById(id, val) } catch { /* 参数不存在则忽略 */ }
     }
 
+    let lastFrame = 0
+    const minFrameMs = 1000 / 30
     const tick = () => {
+      const frameNow = performance.now()
+      if (lastFrame && frameNow - lastFrame < minFrameMs) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+      lastFrame = frameNow
+
       const model = getModel && getModel()
       if (!model) {
         rafRef.current = requestAnimationFrame(tick)
@@ -75,7 +84,7 @@ export function useIdleAnimations(getModel, enabled = true, microInterval = null
         rafRef.current = requestAnimationFrame(tick)
         return
       }
-      const now = performance.now()
+      const now = frameNow
 
       // === 1. 自然眨眼 ===
       if (s.blinkPhase > 0) {

@@ -11,7 +11,6 @@ from services import AIService
 from memory import MemorySystem
 from tools import ToolBox
 from config import Config
-import code_monitor
 import personas
 import auth
 import db
@@ -109,8 +108,6 @@ class NeuroBrain:
         self.max_threshold = 6 * 60 * 60
         self.memory = MemorySystem(user_id)      # 按账号隔离记忆
         self.history = []            # 短期对话历史 (滑动窗口)
-        # 编程监控：缓存最新状态，供状态推送读取
-        self.last_code_status = code_monitor.poll()
         self.persona_id = personas.load_user_persona(user_id)
 
     def update_activity(self):
@@ -311,8 +308,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
 
     # 启动主动意识循环 (后台任务)
     loop_task = asyncio.create_task(game_loop(send_to_frontend, brain))
-    # 启动编程监控循环 (后台任务，每 10s 轮询一次)
-    code_task = asyncio.create_task(code_monitor_loop(send_to_frontend, brain))
     await send_to_frontend("persona_state", brain.persona_payload())
 
     try:
@@ -375,7 +370,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
         print(f"❌ Main Loop Error: {e}")
     finally:
         loop_task.cancel()
-        code_task.cancel()
         cancel_turn()
         cancel_transcribe()
         # 清理活跃连接记录（仅当当前 WS 还是注册的那个时才清，避免误清新连接）
@@ -498,32 +492,6 @@ async def send_reply(text: str, emotion: str, send_func, brain: NeuroBrain, is_c
         })
     else:
         print("⏭️ 本轮已被新指令取代，跳过发送")
-
-
-async def code_monitor_loop(send_func, brain: NeuroBrain):
-    """编程监控循环：每 10s 轮询 Claude Code/Codex 日志，状态变化时推送给前端"""
-    print("👁️ 编程监控启动")
-    try:
-        brain.last_code_status = code_monitor.poll()
-        await send_func("code_status", brain.last_code_status)
-    except Exception as e:
-        print(f"⚠️ 编程监控初始推送失败: {e}")
-
-    while True:
-        await asyncio.sleep(10)
-        try:
-            new_status = code_monitor.poll()
-            old = brain.last_code_status
-            if new_status.get("state") != old.get("state") or new_status.get("tool") != old.get("tool"):
-                brain.last_code_status = new_status
-                print(f"🔧 编程状态变化: {old.get('state')}/{old.get('tool')} → {new_status.get('state')}/{new_status.get('tool')}")
-                await send_func("code_status", new_status)
-            else:
-                if new_status.get("duration_min", 0) != old.get("duration_min", 0):
-                    brain.last_code_status = new_status
-                    await send_func("code_status", new_status)
-        except Exception as e:
-            print(f"⚠️ 编程监控轮询失败: {e}")
 
 
 async def game_loop(send_func, brain: NeuroBrain):

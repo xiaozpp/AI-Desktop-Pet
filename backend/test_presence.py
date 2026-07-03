@@ -72,6 +72,7 @@ class PresencePersistenceTest(unittest.TestCase):
         import config
 
         sentinel = Path(config.Config.DATA_DIR)
+        users_db_existed = (sentinel / "users.db").exists()
         # 用一个肯定不存在的哨兵子路径验证：init_db 不应去碰它。
         sentinel_subdir = sentinel / "_initdb_pollution_sentinel_do_not_exist"
         self.assertFalse(sentinel_subdir.exists())
@@ -88,7 +89,7 @@ class PresencePersistenceTest(unittest.TestCase):
 
         # 关键断言：全局 Config.DATA_DIR 下没有因为 init_db 而多出哨兵目录。
         self.assertFalse(sentinel_subdir.exists())
-        self.assertFalse((sentinel / "users.db").exists())
+        self.assertEqual((sentinel / "users.db").exists(), users_db_existed)
 
 
 if __name__ == "__main__":

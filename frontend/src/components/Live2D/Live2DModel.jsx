@@ -230,6 +230,7 @@ const Live2DDisplay = forwardRef((props, ref) => {
       // 不用 resizeTo: window，否则会用整个窗口高度覆盖输入区；手动处理 resize
       antialias: true,
     })
+    app.ticker.maxFPS = 30
     appRef.current = app
     pixiContainerRef.current.appendChild(app.view)
 

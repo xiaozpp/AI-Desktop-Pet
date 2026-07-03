@@ -16,8 +16,6 @@ export function useLipSync(getModel, analyserRef, isPlaying) {
   const mouthRef = useRef(0); // 平滑后的当前嘴开合
   const samplesRef = useRef(null);
 
-  const isPlayingRef = useRef(isPlaying);
-  isPlayingRef.current = isPlaying;
   const getModelRef = useRef(getModel);
   getModelRef.current = getModel;
 
@@ -26,15 +24,29 @@ export function useLipSync(getModel, analyserRef, isPlaying) {
       try { core.setParameterValueById(id, val); } catch { /* 参数不存在则忽略 */ }
     };
 
+    const closeMouth = () => {
+      mouthRef.current = 0;
+      const model = getModelRef.current && getModelRef.current();
+      const core = model?.internalModel?.coreModel;
+      if (!core) return;
+      setParam(core, 'ParamMouthOpenY', 0);
+      setParam(core, 'JawOpen', 0);
+      setParam(core, 'ParamMouthForm', 0);
+    };
+
+    if (!isPlaying) {
+      closeMouth();
+      return;
+    }
+
     const tick = () => {
       const model = getModelRef.current && getModelRef.current();
       const core = model?.internalModel?.coreModel;
 
       const analyser = analyserRef?.current;
-      const playing = isPlayingRef.current;
 
       let target = 0;
-      if (playing && core && analyser) {
+      if (core && analyser) {
         if (!samplesRef.current || samplesRef.current.length !== analyser.fftSize) {
           samplesRef.current = new Uint8Array(analyser.fftSize);
         }
@@ -63,5 +75,5 @@ export function useLipSync(getModel, analyserRef, isPlaying) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [analyserRef]);
+  }, [analyserRef, isPlaying]);
 }

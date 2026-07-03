@@ -17,7 +17,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 
 # 复制后端源码（不含 .env、tests、__pycache__）
-COPY main.py memory.py services.py config.py tools.py code_monitor.py \
+COPY main.py memory.py services.py config.py tools.py \
      personas.py auth.py db.py protocol.py presence.py migrate.py ./
 
 # 数据目录：k8s 用 PVC 挂载到 /app/data，config.py 的 Config.DATA_DIR 解析它。
