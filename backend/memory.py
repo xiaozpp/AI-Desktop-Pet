@@ -3,7 +3,6 @@ import time
 import os
 import re
 import random
-import asyncio
 import uuid
 import hashlib
 import datetime
@@ -139,15 +138,7 @@ class MemorySystem:
         memory_str = ""
         if user_text:
             # === 有输入：语义检索相关记忆 + 随机带一条旧事 ===
-            # embedding 调用可能因网络较慢（阿里云约 1-2s），设 1.5s 超时：
-            # 超时则跳过语义检索（记忆是锦上添花，不应拖慢对话响应）。
-            query_vec = None
-            try:
-                query_vec = await asyncio.wait_for(
-                    AIService.get_embedding(user_text), timeout=1.5
-                )
-            except asyncio.TimeoutError:
-                print("⏱️ embedding 超时，跳过语义检索")
+            query_vec = await AIService.get_embedding(user_text)
             if query_vec:
                 results = self.episodic_col.query(
                     query_embeddings=[query_vec],

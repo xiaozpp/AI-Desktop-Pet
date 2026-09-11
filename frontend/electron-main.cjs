@@ -5,8 +5,8 @@ const { loadWindowState, saveWindowState } = require('./windowState.cjs');
 const { getMode, pickInRange } = require('./vitalityModes.cjs');
 const { startBackend, stopBackend } = require('./backendProcess.cjs');
 
-// 【核心修复 1】禁用硬件加速，否则 Windows 上透明窗口会变黑
-app.disableHardwareAcceleration();
+// 默认让 Pixi/Live2D 使用 GPU；极少数透明窗口黑屏机器可用 --disable-gpu 回退。
+if (process.argv.includes('--disable-gpu')) app.disableHardwareAcceleration();
 
 // 【核心修复 2】允许延迟创建，防止黑屏闪烁
 let win = null;
@@ -40,40 +40,9 @@ function isAllowedAppOrigin(requestingOrigin) {
 }
 
 function setupMediaPermissions() {
-  // setPermissionRequestHandler：首次请求权限时触发（异步回调）。
-  // setPermissionCheckHandler：每次同步检查权限状态时触发（getUserMedia 会先查它）。
-  // Electron 28+ 必须同时设置两个，否则 getUserMedia 会被其中缺失的那个拒绝。
-  //
-  // 注意：getUserMedia 触发的 media 权限请求里 details.requestingOrigin 经常是空字符串，
-  // 必须改用 webContents.getURL() 取真实页面地址，否则永远判 false。
-  const urlOf = (webContents, details) => {
-    try {
-      return webContents?.getURL?.() || details?.requestingOrigin || '';
-    } catch {
-      return details?.requestingOrigin || '';
-    }
-  };
-  const allowedPermission = (permission, url) => {
-    // Electron 28+ 废弃了 'media'，改用独立的 'microphone' / 'camera'。两者都要兼容。
-    return (
-      permission === 'media' || permission === 'microphone' || permission === 'camera'
-    ) && isAllowedAppOrigin(url);
-  };
-
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const url = urlOf(webContents, details);
-    const allowed = allowedPermission(permission, url);
-    console.log(`[权限-请求] ${permission} | url: ${url} | 允许: ${allowed}`);
-    callback(allowed);
-  });
-
-  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    const url = urlOf(webContents, { requestingOrigin }) || requestingOrigin || '';
-    const allowed = allowedPermission(permission, url);
-    if (permission === 'media' || permission === 'microphone' || permission === 'camera') {
-      console.log(`[权限-检查] ${permission} | url: ${url} | 允许: ${allowed}`);
-    }
-    return allowed;
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    const requestingOrigin = details?.requestingOrigin || '';
+    callback(permission === 'media' && isAllowedAppOrigin(requestingOrigin));
   });
 }
 
@@ -226,16 +195,6 @@ function createWindow(startBounds) {
     win.loadFile(path.join(__dirname, 'dist', 'index.html'));
   } else {
     win.loadURL('http://localhost:5173');
-  }
-
-  // 开发模式：把渲染进程的 console 日志转发到主进程终端，方便在 npm start 终端看到 🎤 日志。
-  // 同时可按需打开 DevTools（默认注释，避免遮挡透明小窗口）。
-  if (!app.isPackaged) {
-    win.webContents.on('console-message', (_event, _level, message, _line, _sourceId) => {
-      console.log(`[renderer] ${message}`);
-    });
-    // 调试时取消下行注释可打开 DevTools：
-    // win.webContents.openDevTools({ mode: 'detach' });
   }
 
   // 点击穿透策略：默认【不穿透】。

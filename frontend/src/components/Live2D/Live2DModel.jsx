@@ -228,11 +228,16 @@ const Live2DDisplay = forwardRef((props, ref) => {
       height: window.innerHeight,
       backgroundAlpha: 0,
       // 不用 resizeTo: window，否则会用整个窗口高度覆盖输入区；手动处理 resize
-      antialias: true,
+      antialias: false,
+      powerPreference: 'low-power',
     })
-    app.ticker.maxFPS = 30
+    app.ticker.maxFPS = 20
     appRef.current = app
     pixiContainerRef.current.appendChild(app.view)
+
+    const onVisibilityChange = () => document.hidden ? app.stop() : app.start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    onVisibilityChange()
 
     let isDestroyed = false
 
@@ -300,6 +305,7 @@ const Live2DDisplay = forwardRef((props, ref) => {
 
     return () => {
       isDestroyed = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener('wheel', onWheel)
       if (clickReactionRef.current) {
         if (clickReactionRef.current.raf) cancelAnimationFrame(clickReactionRef.current.raf)

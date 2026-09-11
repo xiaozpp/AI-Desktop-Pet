@@ -1,60 +1,8 @@
-# AGENTS.md - Neuro 长期记忆桌宠
+# Neuro 项目协作规则
 
-更新日期：2026-06-21
+按当前任务读取 README.md 和相关模块。记忆任务参考 [记忆架构](docs/LONG_TERM_MEMORY_ARCHITECTURE.md)，桌面动作任务参考 [漫游与动画](docs/DESKTOP_ROAMING_AND_ANIMATION.md)；不要求每次通读所有文档。
 
-## 新会话先读
-
-1. `README.md`：当前项目说明和启动方式。
-2. `AGENTS.md`：本文件，开发边界和验证要求。
-3. `docs/LONG_TERM_MEMORY_ARCHITECTURE.md`：现有记忆系统、缺口和演进顺序。
-4. `docs/DESKTOP_ROAMING_AND_ANIMATION.md`：Live2D 动作和 Electron 桌面漫游方案。
-
-## 当前技术事实
-
-- 后端：Python、FastAPI、WebSocket、OpenAI 兼容 API、ChromaDB、SQLite。
-- 前端：React 18、Vite 6、PixiJS 6、pixi-live2d-display、Electron 28。
-- 当前模型：`frontend/public/models/PinkFox/PinkFox.model3.json`。
-- Electron 窗口：300x420、透明、无边框、置顶、可手动拖动、托盘切换点击穿透。
-- 登录用户通过 `user_id` 隔离账号、人格和记忆。
-- 工作区可能有大量用户未提交改动；不要回滚、覆盖或格式化无关文件。
-
-## 已有能力，不要重复造
-
-### 长期记忆
-
-- `backend/memory.py` 已有 `MemorySystem`。
-- 事实：每用户 JSON 文件，临时文件 + `os.replace` 原子写入。
-- 经历：每用户独立 Chroma collection，语义检索相关记忆。
-- Prompt：所有事实 + 最多 3 条相关经历 + 小概率旧记忆。
-- 模型输出 `memory_operation`，由 `execute_updates()` 校验基础类型后写入。
-- 已有记忆完整性、隐私和存储路径测试。
-
-### 动作
-
-- `useIdleAnimations.js` 已有眨眼、呼吸、环顾和伸懒腰参数动画。
-- `Live2DModel.jsx` 已有窗口内“伪走动”实现，但没有调用入口。
-- PinkFox 当前没有在 `model3.json` 注册 Motion；`kuku.motion3.json` 存在但未挂载。
-- 当前伪走动只改变 Pixi canvas 中模型的 `x`，不会移动 Electron 窗口。
-
-## 核心判断
-
-### “长期记忆”不是继续增加记忆数量
-
-下一阶段重点是：
-
-- 数据目录在应用升级后仍可靠。
-- 相关记忆才召回，避免无关 Top-K 污染回复。
-- 去重、冲突更新、编辑、遗忘、导出和删除。
-- Prompt 有 token 预算。
-- 写入经过确定性验证，不让模型随意污染事实库。
-
-详细方案见 `docs/LONG_TERM_MEMORY_ARCHITECTURE.md`。
-
-### “桌面走动”必须移动 BrowserWindow
-
-Renderer 中移动 Live2D 模型只是在 300px 窗口里晃动。真正跨桌面走动必须由 Electron main process 使用 `BrowserWindow.setPosition/setBounds`，并通过受限 IPC 与 Renderer 同步动作状态。
-
-详细方案见 `docs/DESKTOP_ROAMING_AND_ANIMATION.md`。
+[2026-06-21 阶段记录](docs/agent-context-2026-06-21.md)保留旧模型、能力清单、测试状态与迭代路线，仅作历史背景。当前版本、文件入口和已完成状态须按本次相关源码核实。
 
 ## 不可违反的边界
 
@@ -65,54 +13,13 @@ Renderer 中移动 Live2D 模型只是在 300px 窗口里晃动。真正跨桌�
 5. BrowserWindow 位置只能由 main process 修改。
 6. 漫游第一版只在当前显示器 `workArea` 内横向移动，不做桌面图标/其他窗口碰撞。
 7. 不把模型输出的任意字符串直接当作 IPC、文件路径或动作命令执行。
-8. 不重写整个记忆系统；按文档阶段逐步加固现有 `MemorySystem`。
+8. 复用现有 `MemorySystem`，只完成当前授权的改动，不因历史路线图自行实施下一阶段。
 9. 未明确要求时，不新增养成数值、喂食、金币或虚假“桌宠玩法”。
 
-## 已知测试约束
+## 验证与交付
 
-`frontend/src/desktopSurface.test.js` 当前明确禁止主界面出现 `setWander` 和“走动”。这是之前为了拒绝虚假按钮玩法建立的产品契约。
-
-实现真正 Electron 桌面漫游时，必须在同一次改动中更新该测试：删除“禁止真实走动”的旧断言，替换为 main-process IPC、安全边界和屏幕范围测试。不要只删测试。
-
-## 最小迭代顺序
-
-1. 动作清单和参数诊断：确认 PinkFox 实际支持的参数、表情和 Motion。
-2. 注册现有 Motion，建立 `idle/walk/talk/think` 动作映射。
-3. Electron 当前显示器内横向漫游，托盘开关，默认关闭。
-4. 漫游与说话、思考、控制面板、拖动互斥。
-5. 记忆数据目录迁移到持久用户目录。
-6. 召回阈值、去重和 token 预算。
-7. 编辑/忘记/导出/删除记忆。
-8. 会话总结和长期记忆合并。
-
-一次只完成一个可运行闭环。
-
-## 验证命令
-
-后端使用标准库 `unittest`，当前环境没有 pytest：
-
-```powershell
-Set-Location D:\work\desktop-pet\backend
-python -m unittest discover -v
-```
-
-前端：
-
-```powershell
-Set-Location D:\work\desktop-pet\frontend
-npm test
-npm run build
-```
-
-涉及 Electron 桌面移动时还要人工验证：
-
-- 不越过当前显示器工作区和任务栏。
-- 用户拖动、输入、说话和展开控制坞时停止漫游。
-- 关闭漫游后位置稳定。
-- 点击穿透与托盘退出仍可用。
-- 多显示器、缩放比例和断开显示器后不丢失窗口。
-
-## 交付格式
-
-完成后说明：修改文件、可见行为、自动测试、人工验证和仍未实现的边界。不要把“已有原型”描述成完成的长期记忆或完整桌面行为系统。
-
+- 选择覆盖当前修改和真实影响的测试；已有测试足够时复用，不新增固定 QA 流程。
+- 后端相关检查可用 `python -X utf8 -m unittest discover -v`；前端相关检查可用 `npm test` 和 `npm run build`。按项目目录执行，实际命令以当前项目脚本为准；文字改动只检查差异和引用。
+- 真正涉及 Electron 漫游时，验证工作区边界、拖动/输入/说话/控制坞互斥、关闭后的稳定位置、点击穿透与退出，以及相关多屏/缩放/断屏行为。
+- 不删除或放宽安全、身份隔离或真实行为测试来通过验收；原“禁止走动”的旧测试只在对应业务实现和正确替代断言一起变更时调整。
+- 报告修改文件、用户可见行为、实际自动/人工验证和仍未完成的边界；不把原型描述为完整产品。

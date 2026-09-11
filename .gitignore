@@ -55,7 +55,6 @@ backend/.jwt_secret
 # Per-user runtime state
 backend/persona_state.json
 backend/user_facts/
-backend/user_facts.json
 backend/pet_state.json
 backend/pet_states/
 
@@ -63,17 +62,16 @@ backend/pet_states/
 *.tmp
 .cache/
 .codegraph/
+
+# local sync exclusions (auto-added)
 .codex-video-frames/
 .workbuddy/
-
-# 打包产物（PyInstaller / electron-builder 输出）
-frontend/dist-app/
-frontend/release/
-frontend/build/
-backend/build/
-*.exe.blockmap
-
-# 会话/调试产物
-backend/backend.log
-backend/data/
+*.pwd
+*-pwd
+*htpasswd*
+release*/
+*.exe
+*.dll
+*.zip
+*.pem
 

@@ -8,6 +8,7 @@ const inputAreaSource = readFileSync(new URL('./components/Chat/InputArea.jsx', 
 const appCssSource = readFileSync(new URL('./App.css', import.meta.url), 'utf8');
 const memoryPanelSource = readFileSync(new URL('./components/MemoryPanel.jsx', import.meta.url), 'utf8');
 const live2dModelSource = readFileSync(new URL('./components/Live2D/Live2DModel.jsx', import.meta.url), 'utf8');
+const electronMainSource = readFileSync(new URL('../electron-main.cjs', import.meta.url), 'utf8');
 
 test('packaged app loads the Live2D model relative to dist/index.html', () => {
   assert.equal(live2dModelSource.includes("Live2DModel.from('./models/PinkFox/PinkFox.model3.json')"), true);
@@ -15,7 +16,17 @@ test('packaged app loads the Live2D model relative to dist/index.html', () => {
 });
 
 test('Live2D renderer is capped for packaged desktop resource use', () => {
-  assert.equal(live2dModelSource.includes('app.ticker.maxFPS = 30'), true);
+  assert.equal(live2dModelSource.includes('app.ticker.maxFPS = 20'), true);
+  assert.equal(live2dModelSource.includes("powerPreference: 'low-power'"), true);
+  assert.equal(live2dModelSource.includes('antialias: false'), true);
+  assert.equal(live2dModelSource.includes("document.addEventListener('visibilitychange'"), true);
+});
+
+test('Electron uses hardware acceleration unless the user requests the compatibility fallback', () => {
+  assert.equal(
+    electronMainSource.includes("if (process.argv.includes('--disable-gpu')) app.disableHardwareAcceleration();"),
+    true,
+  );
 });
 
 test('idle animation does not spin before authentication', () => {

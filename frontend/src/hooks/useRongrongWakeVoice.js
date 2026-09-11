@@ -4,10 +4,7 @@ const TICK_MS = 100;
 const SPEECH_MS = 250;
 const SILENCE_MS = 900;
 const MAX_PHRASE_MS = 12_000;
-// 待机时（AI 没说话）的音量阈值。
 const VOLUME_THRESHOLD = 0.025;
-// AI 说话时扬声器声音会回灌进麦克风，提高阈值避免回声误触发。
-const VOLUME_THRESHOLD_WHEN_AI_SPEAKING = 0.06;
 
 function recorderOptions() {
   const preferred = 'audio/webm;codecs=opus';
@@ -34,7 +31,6 @@ export function useRongrongWakeVoice({
   onSpeechStart,
   onStatusChange,
   onError,
-  prewarmedStream,
 }) {
   const callbacksRef = useRef({ onVoiceBlob, onSpeechStart, onStatusChange, onError });
   const streamRef = useRef(null);
@@ -48,12 +44,6 @@ export function useRongrongWakeVoice({
   const phraseStartedAtRef = useRef(0);
   const interruptedRef = useRef(false);
   const isAiSpeakingRef = useRef(isAiSpeaking);
-  // 点击事件中预授权好的 stream（保留用户手势），避免 useEffect 中调用 getUserMedia 被拒
-  const prewarmedStreamRef = useRef(prewarmedStream);
-
-  useEffect(() => {
-    prewarmedStreamRef.current = prewarmedStream;
-  }, [prewarmedStream]);
 
   useEffect(() => {
     callbacksRef.current = { onVoiceBlob, onSpeechStart, onStatusChange, onError };
@@ -121,25 +111,13 @@ export function useRongrongWakeVoice({
       }
 
       try {
-        let stream;
-        const prewarmed = prewarmedStreamRef.current;
-        if (prewarmed) {
-          // 点击事件中预先获取的 stream（保留用户手势上下文，避免 NotAllowedError）
-          console.log('🎤 使用预授权麦克风流, tracks:', prewarmed.getAudioTracks().length);
-          prewarmedStreamRef.current = null; // 消费一次
-          stream = prewarmed;
-        } else {
-          // 兜底：自行请求（可能因缺少用户手势而被拒）
-          console.log('🎤 请求麦克风权限...');
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          console.log('🎤 麦克风已获得, tracks:', stream.getAudioTracks().length);
-        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
         if (disposed) {
           stream.getTracks().forEach(track => track.stop());
           return;
@@ -149,58 +127,28 @@ export function useRongrongWakeVoice({
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const audioContext = new AudioCtx();
         audioContextRef.current = audioContext;
-
-        // 修复：Chromium 自动播放策略下 AudioContext 默认 suspended，
-        // 必须显式 resume()，否则 analyser 永远返回静音。
-        if (audioContext.state === 'suspended') {
-          console.log('🎤 AudioContext 处于挂起状态，正在恢复...');
-          await audioContext.resume();
-        }
-        console.log('🎤 AudioContext 状态:', audioContext.state);
-
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 1024;
         source.connect(analyser);
         const buffer = new Uint8Array(analyser.fftSize);
         setStatus('sleeping');
-        console.log('🎤 绒绒唤醒已启动，等待唤醒词... (阈值:', VOLUME_THRESHOLD, ')');
-
-        // 调试：每 2 秒打印一次音量（避免 100ms 刷屏）
-        let debugTick = 0;
 
         intervalRef.current = setInterval(() => {
           const now = Date.now();
-          const aiSpeaking = isAiSpeakingRef.current;
-          // AI 说话时提高阈值，避免自己 TTS 的回声被当成用户说话。
-          const threshold = aiSpeaking ? VOLUME_THRESHOLD_WHEN_AI_SPEAKING : VOLUME_THRESHOLD;
-          const vol = analyserVolume(analyser, buffer);
-          const speaking = vol >= threshold;
+          const speaking = analyserVolume(analyser, buffer) >= VOLUME_THRESHOLD;
           const recording = recorderRef.current?.state === 'recording';
 
-          // 每秒打印一次音量用于诊断（仅在非录音状态）
-          debugTick++;
-          if (debugTick % 20 === 0 && !recording) {
-            console.log(`🎤 音量: ${vol.toFixed(4)} | 阈值: ${threshold} | 说话: ${speaking ? '是' : '否'} | AI说话: ${aiSpeaking ? '是' : '否'}`);
-          }
-
           if (speaking) {
-            if (!speechStartedAtRef.current) {
-              speechStartedAtRef.current = now;
-              console.log('🎤 检测到语音开始 (vol=' + vol.toFixed(3) + ')');
-            }
+            if (!speechStartedAtRef.current) speechStartedAtRef.current = now;
             silenceStartedAtRef.current = 0;
 
             const longEnough = now - speechStartedAtRef.current >= SPEECH_MS;
-            if (longEnough && aiSpeaking && !interruptedRef.current) {
+            if (longEnough && isAiSpeakingRef.current && !interruptedRef.current) {
               interruptedRef.current = true;
-              console.log('🎤 用户插话，打断 AI');
               callbacksRef.current.onSpeechStart?.();
             }
-            if (longEnough && !recording) {
-              console.log('🎤 开始录音短语');
-              startPhrase();
-            }
+            if (longEnough && !recording) startPhrase();
             return;
           }
 
@@ -216,13 +164,11 @@ export function useRongrongWakeVoice({
           const silentLongEnough = now - silenceStartedAtRef.current >= SILENCE_MS;
           const tooLong = now - phraseStartedAtRef.current >= MAX_PHRASE_MS;
           if (silentLongEnough || tooLong) {
-            console.log(`🎤 短语结束 (silentEnd=${silentLongEnough}, tooLong=${tooLong}), chunks=${chunksRef.current.length}`);
             stopPhrase(true);
             setStatus('listening');
           }
         }, TICK_MS);
       } catch (err) {
-        console.error('🎤 getUserMedia 失败:', err.name, err.message, err);
         cleanup();
         setStatus('disabled');
         callbacksRef.current.onError?.(err);

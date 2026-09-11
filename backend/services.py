@@ -18,16 +18,10 @@ client_vision = AsyncOpenAI(
     base_url=Config.VISION_BASE_URL
 )
 
-# 语音客户端 (SiliconFlow，用于 Embedding)
+# 语音客户端 (SiliconFlow)
 client_audio = AsyncOpenAI(
     api_key=Config.SILICON_KEY,
     base_url=Config.SILICON_BASE
-)
-
-# 阿里云百炼 OpenAI 兼容客户端（STT 用，复用 DASHSCOPE_API_KEY）
-client_dashscope_stt = AsyncOpenAI(
-    api_key=Config.DASHSCOPE_API_KEY,
-    base_url=Config.DASHSCOPE_COMPAT_BASE,
 )
 
 class AIService:
@@ -165,9 +159,7 @@ class AIService:
             synth = SpeechSynthesizer(
                 model=Config.TTS_MODEL,
                 voice=Config.TTS_VOICE,
-                # OGG_OPUS 比 MP3 快约 2 倍（首包 0.7s vs 1.7s），Chromium 原生支持播放。
-                # 文件更小也减少 WebSocket 传输耗时。
-                format=AudioFormat.OGG_OPUS_24KHZ_MONO_32KBPS,
+                format=AudioFormat.MP3_22050HZ_MONO_256KBPS,
                 callback=cb,
             )
             synth.streaming_call(text)
@@ -188,61 +180,35 @@ class AIService:
 
     @staticmethod
     async def speech_to_text(audio_base64: str, audio_format: str | None = None):
-
-     #   语音识别 (STT)。默认走阿里云 Qwen-ASR (OpenAI 兼容模式)，复用 DASHSCOPE_API_KEY。
-     #   通过 STT_PROVIDER=siliconflow 可回退到旧的 SenseVoiceSmall（需要有效 SILICON_API_KEY）。
-
+        
+     #   调用 SenseVoice 识别 WebM/WAV 音频
+        
         try:
+            #  解码 Base64 -> Bytes
             audio_bytes = base64.b64decode(audio_base64)
-            print(f"🎤 STT: 收到音频 {len(audio_bytes)} bytes, format={audio_format}, provider={Config.STT_PROVIDER}")
+            
+            # 包装成类似文件的对象 (name 属性很重要，要是 .webm)
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = f"input.{audio_extension(audio_format)}"
 
-            if Config.STT_PROVIDER == "siliconflow":
-                # 旧路径：SiliconFlow SenseVoiceSmall，audio.transcriptions 接口
-                audio_file = io.BytesIO(audio_bytes)
-                audio_file.name = f"input.{audio_extension(audio_format)}"
-                print(f"🎤 STT[硅基]: 文件名={audio_file.name}, 模型={Config.STT_MODEL}")
-                transcript = await client_audio.audio.transcriptions.create(
-                    model=Config.STT_MODEL,
-                    file=audio_file,
-                )
-                result = transcript.text
-            else:
-                # 新路径：阿里云 Qwen-ASR，OpenAI 兼容 chat.completions 接口
-                # 阿里云要求 audio 输入为可访问 URL 或 data URI；这里用 base64 内联，无需公网存储。
-                ext = audio_extension(audio_format)  # webm/wav/mp3/m4a
-                data_uri = f"data:audio/{ext};base64,{audio_base64}"
-                print(f"🎤 STT[阿里云]: 模型={Config.DASHSCOPE_STT_MODEL}")
-                completion = await client_dashscope_stt.chat.completions.create(
-                    model=Config.DASHSCOPE_STT_MODEL,
-                    messages=[{
-                        "role": "user",
-                        "content": [{"type": "input_audio", "input_audio": {"data": data_uri}}],
-                    }],
-                )
-                # 兼容两种返回结构：标准 choices[0].message.content 或自定义字段
-                result = completion.choices[0].message.content if completion.choices else ""
-                if not result and hasattr(completion, "text"):
-                    result = completion.text or ""
-
-            print(f"🎤 STT 结果: '{(result or '')[:100] if result else '(空)'}'")
-            return result or ""
+            #  发送请求
+            transcript = await client_audio.audio.transcriptions.create(
+                model=Config.STT_MODEL,
+                file=audio_file
+            )
+            return transcript.text
         except Exception as e:
             print(f"❌ STT 失败: {e}")
-            import traceback
-            traceback.print_exc()
             return ""
     @staticmethod
     async def get_embedding(text: str):
-        #向量化。默认走阿里云 DashScope（复用 DASHSCOPE_API_KEY），
-        # 避免因 SiliconFlow key 失效导致记忆检索每次白等近 1 秒。
+        #向量化
         try:
             # 只有确实需要存经历时才调这个
             if not text: return None
-            response = await client_dashscope_stt.embeddings.create(
-                model="text-embedding-v3",
+            response = await client_audio.embeddings.create(
+                model="Qwen/Qwen3-Embedding-8B",
                 input=text
             )
             return response.data[0].embedding
-        except Exception as e:
-            print(f"⚠️ embedding 失败: {e}")
-            return None
+        except: return None

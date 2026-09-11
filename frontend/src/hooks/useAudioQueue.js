@@ -27,8 +27,7 @@ export function useAudioQueue(live2dRef) {
   const analyserRef = useRef(null);
 
   // === 内部工具：播放 Base64 音频（经 WebAudio，便于采样音量驱动口型）===
-  // mimeType: 后端告知的音频格式（如 audio/ogg）；缺省时用 audio/mpeg 兼容旧逻辑。
-  const playAudioBlob = (base64Data, mimeType = 'audio/mpeg') => {
+  const playAudioBlob = (base64Data) => {
     return new Promise((resolve, reject) => {
       try {
         const byteCharacters = atob(base64Data);
@@ -37,7 +36,7 @@ export function useAudioQueue(live2dRef) {
           byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mimeType });
+        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
 
         const audio = new Audio(url);
@@ -116,7 +115,7 @@ export function useAudioQueue(live2dRef) {
 
       // 3. 播放音频或模拟阅读
       if (item.audio_base64) {
-        await playAudioBlob(item.audio_base64, item.audio_format || 'audio/ogg');
+        await playAudioBlob(item.audio_base64);
       } else {
         await new Promise(r => setTimeout(r, 1000 + item.text.length * 100));
       }

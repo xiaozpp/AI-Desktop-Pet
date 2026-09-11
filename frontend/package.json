@@ -20,7 +20,7 @@
     "appId": "com.neuro.desktoppet",
     "productName": "Neuro桌宠",
     "directories": {
-      "output": "dist-app",
+      "output": "release",
       "buildResources": "build"
     },
     "files": [

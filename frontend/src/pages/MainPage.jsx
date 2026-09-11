@@ -46,7 +46,6 @@ const CONNECTION_LABELS = {
   closed: '未连接',
 };
 
-
 // 活力档位（renderer 侧映射）。模式名（quiet/standby/roaming/lively）是与 main process 的契约，
 // main 侧据名配置漫游开关/速度/停留；renderer 侧只关心 microInterval（微动作间隔）与 label。
 // 与 frontend/vitalityModes.cjs 的 microInterval 保持一致。
@@ -89,8 +88,6 @@ export default function MainPage() {
   const live2dRef = useRef(null);
   const fileInputRef = useRef(null);
   const voiceSessionUntilRef = useRef(0);
-  // 点击时预授权麦克风的 stream，避免 useEffect 中 getUserMedia 因缺少用户手势被拒
-  const wakeStreamRef = useRef(null);
 
   useEffect(() => {
     let canceled = false;
@@ -228,7 +225,6 @@ export default function MainPage() {
         setNeuroState("idle");
         break;
 
-
       case MSG_TYPE.PERSONA_STATE:
         setPersonaState(payload);
         break;
@@ -314,8 +310,6 @@ export default function MainPage() {
     });
   };
 
-  // 语音转写结果处理（通用短句唤醒 / 持续对话窗口）。
-  // 关键：每次收到转写都重新解析 + 续期窗口，保证持续对话不会中途变聋。
   useEffect(() => {
     const transcript = pendingVoiceTranscript.trim();
     if (!transcript) return;
@@ -328,17 +322,12 @@ export default function MainPage() {
     );
     voiceSessionUntilRef.current = result.activeUntil;
     if (result.woke || result.accepted) setWakeVoiceStatus('listening');
-    if (!result.accepted) {
-      console.log('🎤 转写视为噪声/语气词，已忽略:', JSON.stringify(transcript));
-      return;
-    }
+    if (!result.accepted) return;
 
-    // 持续对话：若 AI 正在说话/播放，先打断再发新消息（贾维斯式插话）。
     if (neuroState === "speaking" || isPlaying) {
       stopAudio();
       sendPacket({ type: MSG_TYPE.INTERRUPT });
     }
-    console.log('🎤 语音指令已接受:', JSON.stringify(result.command));
     setMessages(prev => [...prev, { type: 'user', content: result.command }]);
     sendPacket({
       type: MSG_TYPE.TEXT_INPUT,
@@ -347,21 +336,13 @@ export default function MainPage() {
   }, [pendingVoiceTranscript, neuroState, isPlaying, sendPacket, stopAudio]);
 
   const sendVoiceTranscribeBlob = useCallback((audioBlob) => {
-    if (!audioBlob || connectionStatus !== 'open') {
-      console.warn('🎤 sendVoiceTranscribeBlob 跳过: blob=', !!audioBlob, 'conn=', connectionStatus);
-      return;
-    }
-    console.log('🎤 发送语音转写, blob大小:', audioBlob.size, '类型:', audioBlob.type);
+    if (!audioBlob || connectionStatus !== 'open') return;
 
     const reader = new FileReader();
     reader.onload = () => {
       const base64Full = reader.result;
       const base64Data = String(base64Full).split(',')[1];
-      if (!base64Data) {
-        console.warn('🎤 base64 提取失败');
-        return;
-      }
-      console.log('🎤 发送 voice_transcribe, base64长度:', base64Data.length);
+      if (!base64Data) return;
       sendPacket({
         type: MSG_TYPE.VOICE_TRANSCRIBE,
         payload: {
@@ -434,47 +415,16 @@ export default function MainPage() {
     window.petAPI?.setVitalityMode?.(mode);
   }, []);
 
-  const handleWakeVoiceToggle = useCallback(async () => {
-    // 用 ref 读到当前最新值（避免闭包陈旧引用）
-    const currentlyEnabled = wakeVoiceEnabled;
-    const next = !currentlyEnabled;
-
-    if (next) {
-      // ✅ 在用户点击事件内直接获取麦克风（保留 transient activation），
-      //    避免 useEffect 中调用 getUserMedia 被 Electron/Chromium 拒绝。
-      try {
-        console.log('🎤 点击开启唤醒，在用户手势内请求麦克风...');
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        console.log('🎤 预授权成功, tracks:', stream.getAudioTracks().length);
-        wakeStreamRef.current = stream;
-        setWakeVoiceEnabled(true);
-      } catch (err) {
-        console.error('🎤 预授权失败:', err.name, err.message);
-        // 直接走 hook 的 onError 逻辑（但 hook 还未启动，手动弹窗）
-        const errName = err?.name || 'UnknownError';
-        const info = errName === 'NotAllowedError'
-          ? `麦克风权限被拒绝 (${err.message || ''})。请在 Windows 设置 → 隐私 → 麦克风 → 允许桌面应用访问麦克风，然后重新点击麦克风按钮。`
-          : `麦克风不可用 (${errName})，请确认电脑有可用输入设备。`;
-        window.alert(info);
-        setWakeVoiceEnabled(false);
+  const handleWakeVoiceToggle = useCallback(() => {
+    setWakeVoiceEnabled(enabled => {
+      const next = !enabled;
+      if (!next) {
+        voiceSessionUntilRef.current = 0;
+        setWakeVoiceStatus('disabled');
       }
-    } else {
-      // 关闭：清掉预授权的 stream
-      if (wakeStreamRef.current) {
-        wakeStreamRef.current.getTracks().forEach(t => t.stop());
-        wakeStreamRef.current = null;
-      }
-      voiceSessionUntilRef.current = 0;
-      setWakeVoiceStatus('disabled');
-      setWakeVoiceEnabled(false);
-    }
-  }, [wakeVoiceEnabled]);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(WAKE_VOICE_STORAGE_KEY, wakeVoiceEnabled ? 'true' : 'false');
@@ -484,7 +434,6 @@ export default function MainPage() {
     enabled: wakeVoiceEnabled,
     disabled: connectionStatus !== 'open' || authState.status !== 'authenticated',
     isAiSpeaking: neuroState === "speaking" || isPlaying,
-    prewarmedStream: wakeStreamRef.current,
     onVoiceBlob: sendVoiceTranscribeBlob,
     onSpeechStart: interruptNeuro,
     onStatusChange: (status) => {
@@ -492,12 +441,9 @@ export default function MainPage() {
     },
     onError: (err) => {
       setWakeVoiceEnabled(false);
-      const errName = err?.name || 'UnknownError';
-      const errMsg = err?.message || '';
-      console.error('🎤 语音唤醒错误:', errName, errMsg, err);
-      const info = errName === 'NotAllowedError'
-        ? `麦克风权限被拒绝 (${errMsg})。请在 Windows 设置 → 隐私 → 麦克风 → 允许桌面应用访问麦克风，然后重新点击麦克风按钮。`
-        : `麦克风不可用 (${errName}: ${errMsg})，请确认电脑有可用输入设备。`;
+      const info = err?.name === 'NotAllowedError'
+        ? '麦克风权限被系统拒绝，请在 Windows 隐私设置里允许 Neuro桌宠 使用麦克风。'
+        : '麦克风不可用，请确认电脑有可用输入设备。';
       window.alert(info);
       setMessages(prev => [...prev, { type: 'system', content: `${info} 语音唤醒已关闭。` }]);
     },
@@ -638,7 +584,7 @@ export default function MainPage() {
         <div className="subtitles">
           {neuroState === "thinking" ? (
              <div className="status-indicator">
-               <LoadingDots /> <span style={{marginLeft:8}}>让我想想</span>
+               <LoadingDots /> <span style={{marginLeft:8}}>思考中...</span>
              </div>
           ) : (
              subtitle && <div className="subtitle-text">{subtitle}</div>

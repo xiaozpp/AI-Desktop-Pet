@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FrontendDir = Resolve-Path (Join-Path $ScriptDir '..')
-$ReleaseDir = Join-Path $FrontendDir 'dist-app'
+$ReleaseDir = Join-Path $FrontendDir 'release'
 $Target = Join-Path $ReleaseDir 'win-unpacked'
 
 if (-not (Test-Path -LiteralPath $ReleaseDir)) {

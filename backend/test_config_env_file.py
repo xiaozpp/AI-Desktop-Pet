@@ -32,6 +32,5 @@ class ConfigEnvFileTest(unittest.TestCase):
 
         self.assertEqual(output, ["from_packaged_env", "https://example.test/v1"])
 
-
 if __name__ == "__main__":
     unittest.main()

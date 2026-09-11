@@ -55,22 +55,15 @@ class Config:
     PROFILE_KEY = os.getenv("PROFILE_LLM_KEY")
     PROFILE_BASE = os.getenv("PROFILE_LLM_BASE")
 
-    # SiliconFlow (Embedding 用，STT 默认已迁到阿里云)
+    # SiliconFlow (STT/Embedding，TTS 已迁到阿里云)
     SILICON_KEY = os.getenv("SILICON_API_KEY")
     SILICON_BASE = os.getenv("SILICON_BASE_URL")
     STT_MODEL = os.getenv("STT_MODEL", "FunAudioLLM/SenseVoiceSmall")
 
-    # 阿里云百炼 CosyVoice (TTS - 御姐音) + Qwen-ASR (STT，复用同一 key)
+    # 阿里云百炼 CosyVoice (TTS - 御姐音)
     DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
     TTS_MODEL = os.getenv("TTS_MODEL", "cosyvoice-v1")
     TTS_VOICE = os.getenv("TTS_VOICE", "longyuan")  # longyuan = 龙渊(御姐)
-    # 语音识别 provider：dashscope(阿里云 Qwen-ASR) | siliconflow(旧 SenseVoiceSmall)
-    # 阿里云 OpenAI 兼容模式 endpoint，复用 DASHSCOPE_API_KEY
-    STT_PROVIDER = os.getenv("STT_PROVIDER", "dashscope")
-    DASHSCOPE_COMPAT_BASE = os.getenv(
-        "DASHSCOPE_COMPAT_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    )
-    DASHSCOPE_STT_MODEL = os.getenv("DASHSCOPE_STT_MODEL", "qwen3-asr-flash")
 
     # Proxy
     PROXY = os.getenv("PROXY_URL")

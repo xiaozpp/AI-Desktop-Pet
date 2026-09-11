@@ -162,7 +162,7 @@ class NeuroBrain:
             【关于记忆的使用方式——非常重要】
             1. 你【记得】上面这些事，就像真正的朋友记得你们的过往。在对话中【主动、自然地】引用它们。
                - 例：主人提及时尚 → 你想起"上次你说喜欢某风格"
-               - 例：主人很久没来 → 你说"你上次说要减肥，最近怎么样了"
+               - 例：主人很久没来 → 只从上方真实召回的记忆里选择一件事自然问候
                - 例：主人提到某个名字 → 你说"哦就是上次那个XX啊"
             2. 绝不装作忘记已知事实。如果主人问"你还记得吗"，结合记忆回答。
             3. 如果记忆和主人现在说的矛盾，要指出来："咦，你上次不是说XXX吗？怎么变了？"
@@ -170,6 +170,7 @@ class NeuroBrain:
             4. 不要生硬地罗列记忆，要像聊天那样不经意地融入。
             5. 隔几天没见，可以主动提起旧事表达想念。
                （主动发言时若带了【突然想起的往事】，那是你很久没想起但重要的事，自然提起它）
+            6. 只使用上方实际提供的事实和过往；记忆为空时，禁止编造“你上次说过……”之类的经历。
 
             请针对用户的输入，返回一个 JSON 对象（严格遵守 JSON 格式）：
             {{
@@ -270,7 +271,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
 
     def cancel_turn():
         if turn_task and not turn_task.done():
-            print(f"⏹️ 取消上一轮对话 (gen={turn_generation})")
             turn_task.cancel()
 
     def cancel_transcribe():
@@ -325,7 +325,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
             if packet_type == "text_input":
                 text = payload.get("text", "")
                 image_b64 = payload.get("image_base64")
-                print(f"💬 收到文字: {text[:60]}")
                 turn_generation += 1
                 cancel_turn()
                 turn_task = asyncio.create_task(run_text_turn(
@@ -478,20 +477,14 @@ async def send_reply(text: str, emotion: str, send_func, brain: NeuroBrain, is_c
     brain.state = "speaking"
     estimated_duration = len(text) * 0.25 + 1.0
     brain.last_interaction = time.time() + estimated_duration
-    print(f"🔊 准备回复: {text[:60]}")
     audio_b64 = await AIService.text_to_speech(text, emotion)
-    if not audio_b64:
-        print("⚠️ TTS 返回空，前端将只显示文字无声音")
+
     if is_current():
-        print("📤 发送 audio_chunk 给前端")
         await send_func("audio_chunk", {
             "text": text,
             "audio_base64": audio_b64,
-            "audio_format": "audio/ogg",
             "expression": emotion
         })
-    else:
-        print("⏭️ 本轮已被新指令取代，跳过发送")
 
 
 async def game_loop(send_func, brain: NeuroBrain):
